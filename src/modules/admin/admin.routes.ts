@@ -112,7 +112,12 @@ adminPagesRouter.post(
       const token = await adminService.adminLogin(parsed.data);
       res.cookie(env.ADMIN_COOKIE_NAME, token, cookieOptions);
       res.redirect('/admin/overview');
-    } catch {
+    } catch (err) {
+      // Logged, not shown — this catch previously swallowed every failure
+      // mode identically (wrong credentials, DB errors, a bad
+      // JWT_ADMIN_SECRET, ...) behind the same generic message, which made
+      // an infra-level failure indistinguishable from a typo'd password.
+      req.log.error({ err }, 'admin login failed');
       res.status(401).render('admin/login', { error: 'Invalid email or password.' });
     }
   }),
