@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sumup — Family Rhythm Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <%- include('partials/styles') %>
+</head>
+<body>
+  <%- include('partials/nav', { active: 'sumup' }) %>
+  <main>
+    <h1>Sumup</h1>
+    <p style="color:#55606e; font-size:14px; margin-top:-8px;">
+      Monthly profit (sum of valid purchases) — check a month off once it's been reviewed/booked.
+      Super admin only.
+    </p>
+
+    <% if (rows.length === 0) { %>
+      <div class="empty">Nothing to sum up yet.</div>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Profit</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']; %>
+          <% rows.forEach(function(r) { %>
+            <tr>
+              <td><%= monthNames[r.month - 1] %> <%= r.year %></td>
+              <td>$<%= r.profit.toFixed(2) %></td>
+              <td><span class="badge <%= r.status %>"><%= r.status %></span></td>
+              <td>
+                <form method="post" action="/admin/sumup" style="display:flex; gap:6px;">
+                  <input type="hidden" name="year" value="<%= r.year %>" />
+                  <input type="hidden" name="month" value="<%= r.month %>" />
+                  <% if (r.status === 'confirmed') { %>
+                    <input type="hidden" name="status" value="none" />
+                    <button type="submit" class="btn small">Mark as None</button>
+                  <% } else { %>
+                    <input type="hidden" name="status" value="confirmed" />
+                    <button type="submit" class="btn small primary">Confirm</button>
+                  <% } %>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </main>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Overview — Family Rhythm Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <%- include('partials/styles') %>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <%- include('partials/nav', { active: 'overview' }) %>
+  <main>
+    <h1>Overview</h1>
+
+    <div class="section-title">Users</div>
+    <div class="stat-grid">
+      <div class="stat-card highlight"><div class="label">Total users</div><div class="value"><%= stats.users.total %></div></div>
+      <div class="stat-card"><div class="label">Today</div><div class="value"><%= stats.users.today %></div></div>
+      <div class="stat-card"><div class="label">This week</div><div class="value"><%= stats.users.thisWeek %></div></div>
+      <div class="stat-card"><div class="label">This month</div><div class="value"><%= stats.users.thisMonth %></div></div>
+      <div class="stat-card"><div class="label">This year</div><div class="value"><%= stats.users.thisYear %></div></div>
+    </div>
+
+    <div class="section-title">Purchase amount</div>
+    <div class="stat-grid">
+      <div class="stat-card money"><div class="label">Total</div><div class="value">$<%= stats.purchases.total.toFixed(2) %></div></div>
+      <div class="stat-card"><div class="label">Today</div><div class="value">$<%= stats.purchases.today.toFixed(2) %></div></div>
+      <div class="stat-card"><div class="label">This week</div><div class="value">$<%= stats.purchases.thisWeek.toFixed(2) %></div></div>
+      <div class="stat-card"><div class="label">This month</div><div class="value">$<%= stats.purchases.thisMonth.toFixed(2) %></div></div>
+      <div class="stat-card"><div class="label">This year</div><div class="value">$<%= stats.purchases.thisYear.toFixed(2) %></div></div>
+    </div>
+
+    <form class="filter-bar" method="get" action="/admin/overview">
+      <div class="filter-row">
+        <div class="filter-field">
+          <label>Chart granularity</label>
+          <select name="granularity">
+            <option value="day" <%= stats.granularity === 'day' ? 'selected' : '' %>>Per day</option>
+            <option value="week" <%= stats.granularity === 'week' ? 'selected' : '' %>>Per week</option>
+            <option value="month" <%= stats.granularity === 'month' ? 'selected' : '' %>>Per month</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label>From</label>
+          <input type="date" name="from" value="<%= range.from %>" />
+        </div>
+        <div class="filter-field">
+          <label>To</label>
+          <input type="date" name="to" value="<%= range.to %>" />
+        </div>
+        <div class="filter-actions">
+          <button type="submit" class="btn primary">Apply</button>
+          <a class="btn" href="/admin/overview">Reset</a>
+        </div>
+      </div>
+      <%- include('partials/dateRangeFilter') %>
+    </form>
+
+    <div class="chart-card">
+      <h2>New users (<%= stats.granularity %>)</h2>
+      <canvas id="usersChart" height="80"></canvas>
+    </div>
+
+    <div class="chart-card">
+      <h2>Purchase amount (<%= stats.granularity %>)</h2>
+      <canvas id="purchasesChart" height="80"></canvas>
+    </div>
+  </main>
+
+  <script>
+    const usersSeries = <%- JSON.stringify(stats.users.series) %>;
+    const purchasesSeries = <%- JSON.stringify(stats.purchases.series) %>;
+
+    new Chart(document.getElementById('usersChart'), {
+      type: 'bar',
+      data: {
+        labels: usersSeries.map((p) => p.bucket),
+        datasets: [{ label: 'New users', data: usersSeries.map((p) => p.count), backgroundColor: '#1c5ec2' }],
+      },
+      options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+    });
+
+    new Chart(document.getElementById('purchasesChart'), {
+      type: 'line',
+      data: {
+        labels: purchasesSeries.map((p) => p.bucket),
+        datasets: [{
+          label: 'Purchase amount ($)',
+          data: purchasesSeries.map((p) => p.amount),
+          borderColor: '#1a7f37',
+          backgroundColor: 'rgba(26,127,55,0.12)',
+          fill: true,
+          tension: 0.25,
+        }],
+      },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } },
+    });
+  </script>
+</body>
+</html>

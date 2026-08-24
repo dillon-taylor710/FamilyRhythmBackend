@@ -1,0 +1,216 @@
+// Family Rhythm backend — subscription/billing data model.
+//
+// Design notes:
+// - `User` is the first real per-account identity for this app — the
+//   Flutter client currently has no backend and hardcodes a single mock
+//   user id, so this table (and the /api/auth endpoints in front of it)
+//   is a new addition, not a mirror of anything that already exists.
+// - `Subscription` is the fast-lookup "current state" row the app reads
+//   via GET /api/subscriptions/status — its `status` enum intentionally
+//   matches the Flutter app's `SubscriptionStatus` enum
+//   (lib/features/subscription/models/subscription_state.dart) value for
+//   value, so that screen's `build()` can swap straight onto this
+//   response shape with no enum-mapping layer.
+// - `PurchaseTransaction` is a separate, append-only audit log — every
+//   POST /api/subscriptions/verify call inserts one row here (even for
+//   invalid/duplicate attempts) before touching `Subscription`. This is
+//   what makes a purchase token replay ("reuse someone else's token to
+//   grant myself a subscription") detectable: query for an existing row
+//   with the same token bound to a different user.
+// - `AdminUser` is intentionally a separate table (not a `User` with a
+//   role flag) so the admin JWT audience/secret can be kept completely
+//   separate from the mobile-app user JWT — see src/config/env.ts and
+//   the two auth middlewares in src/middleware/.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionStatus {
+  active_trial
+  active_paid
+  expired_trial
+  expired_subscription
+  cancelled
+  unknown_error
+}
+
+enum Platform {
+  android
+  ios
+}
+
+enum VerificationResult {
+  valid
+  invalid
+  expired
+  error
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  displayName   String   @map("display_name")
+  emailVerified Boolean  @default(false) @map("email_verified")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  subscription  Subscription?
+  transactions  PurchaseTransaction[]
+  resetTokens   PasswordResetToken[]
+  verificationCodes EmailVerificationCode[]
+
+  @@map("users")
+}
+
+model EmailVerificationCode {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Same reasoning as `PasswordResetToken.tokenHash` — only the raw
+  // 6-digit code is ever emailed, never stored.
+  codeHash  String    @map("code_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  // Wrong-code guesses against this row — a 6-digit code only has 1e6
+  // possibilities, so unlike the password-reset token (a 256-bit random
+  // string, unguessable) this needs its own brute-force cap independent
+  // of the general per-IP rate limiter in `auth.routes.ts`.
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("email_verification_codes")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // The raw token is only ever emailed to the user, never stored — this is
+  // its SHA-256 hex digest, so a leaked DB row can't be replayed as a live
+  // reset link (same reasoning as storing `passwordHash` instead of the
+  // plaintext password itself).
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// Editable list price per store product ID — the actual source of truth
+// `subscriptions.service.ts#verifyPurchase` looks up when recording a new
+// `PurchaseTransaction.amountUsd` (see that column's doc comment: a later
+// price change here never rewrites what a *past* purchase is reported as
+// having cost, only what a *new* one gets charged/recorded going forward).
+// Seeded once via migration with today's 3 tiers; edited afterward from
+// the admin Plans page, never by editing this schema again.
+model SubscriptionPlan {
+  id        String   @id @default(uuid())
+  productId String   @unique @map("product_id")
+  label     String
+  priceUsd  Decimal  @db.Decimal(10, 2) @map("price_usd")
+  isActive  Boolean  @default(true) @map("is_active")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                    String             @id @default(uuid())
+  userId                String             @unique @map("user_id")
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status                SubscriptionStatus @default(active_trial)
+  planId                String?            @map("plan_id")
+  platform              Platform?
+
+  trialStartAt          DateTime?          @map("trial_start_at")
+  currentPeriodStart    DateTime?          @map("current_period_start")
+  currentPeriodEnd      DateTime?          @map("current_period_end")
+  autoRenewing          Boolean            @default(false) @map("auto_renewing")
+
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+model PurchaseTransaction {
+  id                 String              @id @default(uuid())
+  userId             String              @map("user_id")
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platform           Platform
+  productId          String              @map("product_id")
+  // Google calls this a "purchase token", Apple a "transaction id" —
+  // stored in one column since exactly one of them applies per row and
+  // both play the same role: the opaque handle the store issued for this
+  // specific purchase, which must never be claimable by a second user.
+  purchaseToken      String              @map("purchase_token")
+  rawReceipt         Json?               @map("raw_receipt")
+  verifiedAt         DateTime            @default(now()) @map("verified_at")
+  verificationResult VerificationResult  @map("verification_result")
+  // USD price for `productId` *at the moment this was recorded* (see
+  // `subscriptions.service.ts#verifyPurchase`, which looks it up from
+  // `planCatalog.ts` once and stores it here) — never recomputed from the
+  // current price catalog on read. Admin revenue reporting (Purchases,
+  // Overview, Sumup) sums this column directly instead of re-deriving an
+  // amount from `productId`, so a later price change can't silently
+  // rewrite what past purchases are reported as having cost. `0` for an
+  // invalid/unrecognized purchase, same as a real store would charge
+  // nothing for a rejected transaction.
+  amountUsd          Decimal             @default(0) @db.Decimal(10, 2) @map("amount_usd")
+
+  // Same token can legitimately be re-submitted by the same user (e.g. the
+  // app retries after a network drop) — what must never happen is the same
+  // token resolving to two different users, which the verify handler
+  // checks for explicitly before trusting this uniqueness constraint alone.
+  @@unique([platform, purchaseToken])
+  @@index([userId])
+  @@map("purchase_transactions")
+}
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  // Grants access to the Sumup page (monthly profit confirmation) — every
+  // other admin page is available to any AdminUser regardless of this flag.
+  isSuperAdmin Boolean  @default(false) @map("is_super_admin")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admin_users")
+}
+
+enum SumupStatus {
+  none
+  confirmed
+}
+
+// One row per calendar month, created on first view of the Sumup page
+// (default `none`) — a super admin flips it to `confirmed` once that
+// month's profit has been reviewed/booked. `profit` itself is never stored
+// here; it's recomputed on read from `PurchaseTransaction` (see
+// `admin.service.ts#listMonthlySumups`) so it's always accurate even if a
+// transaction is added/corrected after the fact.
+model MonthlySumup {
+  id        String      @id @default(uuid())
+  year      Int
+  month     Int
+  status    SumupStatus @default(none)
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  updatedBy String?     @map("updated_by")
+
+  @@unique([year, month])
+  @@map("monthly_sumups")
+}

@@ -1,0 +1,15 @@
+<%
+  const presets = [
+    ['today', 'Today'], ['yesterday', 'Yesterday'],
+    ['this_week', 'This Week'], ['previous_week', 'Previous Week'],
+    ['this_month', 'This Month'], ['previous_month', 'Previous Month'],
+    ['this_year', 'This Year'], ['previous_year', 'Previous Year'],
+  ];
+  const noRangeSet = !query.preset && !query.from && !query.to;
+%>
+<div class="preset-row">
+  <a href="<%= qs({ preset: undefined, from: undefined, to: undefined, page: 1 }) %>" class="<%= noRangeSet ? 'active' : '' %>">All Time</a>
+  <% presets.forEach(function(p) { %>
+    <a href="<%= qs({ preset: p[0], from: undefined, to: undefined, page: 1 }) %>" class="<%= query.preset === p[0] ? 'active' : '' %>"><%= p[1] %></a>
+  <% }); %>
+</div>

@@ -1,0 +1,38 @@
+<header>
+  <nav>
+    <a href="/admin/overview" class="<%= active === 'overview' ? 'active' : '' %>">Overview</a>
+    <a href="/admin/users" class="<%= active === 'users' ? 'active' : '' %>">Users</a>
+    <a href="/admin/subscriptions" class="<%= active === 'subscriptions' ? 'active' : '' %>">Subscriptions</a>
+    <a href="/admin/purchases" class="<%= active === 'purchases' ? 'active' : '' %>">Purchases</a>
+    <% if (isSuperAdmin) { %>
+      <a href="/admin/plans" class="<%= active === 'plans' ? 'active' : '' %>">Plans</a>
+      <a href="/admin/sumup" class="<%= active === 'sumup' ? 'active' : '' %>">Sumup</a>
+    <% } %>
+  </nav>
+  <form id="admin-logout-form" method="post" action="/admin/logout"><button type="submit">Sign out</button></form>
+</header>
+<script>
+  // Mirrors the server's sliding 30-minute admin session (`adminGuard.ts`):
+  // any request refreshes the cookie there, but an idle tab never sends
+  // one, so this timer is what actually signs the browser out once that
+  // window lapses instead of just leaving a stale page on screen until the
+  // user's next click gets redirected server-side.
+  (function () {
+    var IDLE_LIMIT_MS = 10 * 60 * 1000;
+    var idleTimer;
+
+    function logout() {
+      document.getElementById('admin-logout-form').submit();
+    }
+
+    function resetIdleTimer() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(logout, IDLE_LIMIT_MS);
+    }
+
+    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function (event) {
+      document.addEventListener(event, resetIdleTimer, { passive: true });
+    });
+    resetIdleTimer();
+  })();
+</script>

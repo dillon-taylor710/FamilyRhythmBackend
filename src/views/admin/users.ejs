@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Users — Family Rhythm Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <%- include('partials/styles') %>
+</head>
+<body>
+  <%- include('partials/nav', { active: 'users' }) %>
+  <main>
+    <h1>Users</h1>
+
+    <div class="totals-strip">
+      <div><strong><%= result.total %></strong><span>Total matching users</span></div>
+    </div>
+
+    <form class="filter-bar" method="get" action="/admin/users">
+      <div class="filter-row">
+        <div class="filter-field">
+          <label>Email</label>
+          <input type="text" name="email" value="<%= query.email || '' %>" placeholder="Search by email" />
+        </div>
+        <div class="filter-field">
+          <label>Name</label>
+          <input type="text" name="name" value="<%= query.name || '' %>" placeholder="Search by name" />
+        </div>
+        <div class="filter-field">
+          <label>Date field</label>
+          <select name="dateField">
+            <option value="signup" <%= query.dateField === 'signup' ? 'selected' : '' %>>Signup date</option>
+            <option value="expires" <%= query.dateField === 'expires' ? 'selected' : '' %>>Expires</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label>From</label>
+          <input type="date" name="from" value="<%= range.from %>" />
+        </div>
+        <div class="filter-field">
+          <label>To</label>
+          <input type="date" name="to" value="<%= range.to %>" />
+        </div>
+        <div class="filter-actions">
+          <button type="submit" class="btn primary">Search</button>
+          <a class="btn" href="/admin/users">Reset</a>
+        </div>
+      </div>
+      <%- include('partials/dateRangeFilter') %>
+    </form>
+
+    <% if (result.items.length === 0) { %>
+      <div class="empty">No users match this search.</div>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Signed up</th>
+            <th>Subscription</th>
+            <th>Plan</th>
+            <th>Expires</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% result.items.forEach(function(u) { %>
+            <tr>
+              <td><%= u.email %></td>
+              <td><%= u.displayName %></td>
+              <td><%= new Date(u.createdAt).toLocaleDateString() %></td>
+              <td>
+                <% if (u.subscriptionStatus) { %>
+                  <span class="badge <%= u.subscriptionStatus %>"><%= u.subscriptionStatus %></span>
+                <% } else { %>
+                  —
+                <% } %>
+              </td>
+              <td><%= u.planId || '—' %></td>
+              <td><%= u.expiresAt ? new Date(u.expiresAt).toLocaleDateString() : '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+      <%- include('partials/pagination') %>
+    <% } %>
+  </main>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<% if (result.pageCount > 1) { %>
+  <div class="pagination">
+    <a class="<%= result.page <= 1 ? 'disabled' : '' %>" href="<%= qs({ page: result.page - 1 }) %>">&laquo; Prev</a>
+    <% for (let p = 1; p <= result.pageCount; p++) { %>
+      <% if (p === result.page) { %>
+        <span class="current"><%= p %></span>
+      <% } else { %>
+        <a href="<%= qs({ page: p }) %>"><%= p %></a>
+      <% } %>
+    <% } %>
+    <a class="<%= result.page >= result.pageCount ? 'disabled' : '' %>" href="<%= qs({ page: result.page + 1 }) %>">Next &raquo;</a>
+  </div>
+<% } %>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Plans — Family Rhythm Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <%- include('partials/styles') %>
+</head>
+<body>
+  <%- include('partials/nav', { active: 'plans' }) %>
+  <main>
+    <h1>Plans</h1>
+    <p style="color:#55606e; font-size:14px; margin-top:-8px;">
+      List price per plan — a change here only affects <em>new</em> purchases going forward.
+      Past purchases keep whatever price was recorded at the time (see the Purchases page).
+    </p>
+
+    <% if (plans.length === 0) { %>
+      <div class="empty">No plans yet.</div>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <th>Product ID</th>
+            <th>Label</th>
+            <th>Price (USD)</th>
+            <th>Active</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% plans.forEach(function(p) { %>
+            <% const formId = 'plan-form-' + p.productId; %>
+            <tr>
+              <td><%= p.productId %><input type="hidden" name="productId" value="<%= p.productId %>" form="<%= formId %>" /></td>
+              <td><input type="text" name="label" value="<%= p.label %>" required form="<%= formId %>" /></td>
+              <td><input type="number" name="priceUsd" value="<%= p.priceUsd.toFixed(2) %>" step="0.01" min="0" required style="width:100px;" form="<%= formId %>" /></td>
+              <td><input type="checkbox" name="isActive" <%= p.isActive ? 'checked' : '' %> form="<%= formId %>" /></td>
+              <td>
+                <!-- `<form>` can't nest inside `<tr>`/`<td>` per the HTML
+                     spec, so it lives here empty and every input above
+                     joins it via `form="<%= formId %>"` instead. -->
+                <form id="<%= formId %>" method="post" action="/admin/plans"></form>
+                <button type="submit" form="<%= formId %>" class="btn small primary">Save</button>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </main>
+</body>
+</html>

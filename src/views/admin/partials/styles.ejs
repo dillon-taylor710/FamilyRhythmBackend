@@ -1,0 +1,176 @@
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f6f8;
+    color: #1a1d23;
+    margin: 0;
+  }
+  header {
+    background: #1a1d23;
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header nav a {
+    color: #cfd3da;
+    text-decoration: none;
+    margin-right: 16px;
+    font-size: 14px;
+    padding-bottom: 2px;
+  }
+  header nav a:hover { color: #fff; }
+  header nav a.active { color: #fff; border-bottom: 2px solid #4c8dff; }
+  header form { display: inline; }
+  header button {
+    background: none;
+    border: 1px solid #444;
+    color: #cfd3da;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid #eceef1;
+    font-size: 14px;
+  }
+  th { background: #fafbfc; font-weight: 600; color: #55606e; }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge.active_paid, .badge.valid, .badge.confirmed { background: #dcf5e3; color: #1a7f37; }
+  .badge.active_trial { background: #e2ecff; color: #1c5ec2; }
+  .badge.expired_trial, .badge.expired_subscription, .badge.cancelled, .badge.invalid { background: #fde2e2; color: #b3261e; }
+  .badge.unknown_error, .badge.none, .badge.expired, .badge.error { background: #f1f2f4; color: #55606e; }
+  .empty { color: #838a94; padding: 24px; text-align: center; }
+
+  /* --- Filter bar: search fields + date-range presets, shared by every
+     list page (Users/Subscriptions/Purchases). Plain GET form — the whole
+     page reloads on submit, no JS framework needed for an internal tool. */
+  .filter-bar {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+    margin-bottom: 10px;
+  }
+  .filter-field { display: flex; flex-direction: column; gap: 4px; }
+  .filter-field label { font-size: 12px; color: #55606e; }
+  .filter-field input, .filter-field select {
+    padding: 7px 9px;
+    border: 1px solid #d7dbe0;
+    border-radius: 6px;
+    font-size: 13px;
+    min-width: 140px;
+  }
+  .filter-actions { display: flex; gap: 8px; }
+  .btn {
+    display: inline-block;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid #d7dbe0;
+    background: #fff;
+    color: #1a1d23;
+    text-decoration: none;
+  }
+  .btn:hover { background: #f5f6f8; }
+  .btn.primary { background: #1a1d23; color: #fff; border-color: #1a1d23; }
+  .btn.primary:hover { background: #33383f; }
+  .btn.small { padding: 4px 10px; font-size: 12px; }
+  .preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .preset-row a {
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #f1f2f4;
+    color: #55606e;
+    text-decoration: none;
+  }
+  .preset-row a.active { background: #1a1d23; color: #fff; }
+
+  /* --- Totals strip: "total result" summary shown above every list table */
+  .totals-strip {
+    display: flex;
+    gap: 24px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+  .totals-strip strong { font-size: 18px; display: block; }
+  .totals-strip span { color: #838a94; font-size: 12px; }
+
+  /* --- Pagination */
+  .pagination { display: flex; gap: 6px; justify-content: center; margin-top: 16px; }
+  .pagination a, .pagination .current {
+    display: inline-block;
+    min-width: 30px;
+    text-align: center;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+    color: #1a1d23;
+    background: #fff;
+    border: 1px solid #d7dbe0;
+  }
+  .pagination .current { background: #1a1d23; color: #fff; border-color: #1a1d23; }
+  .pagination a.disabled { opacity: 0.4; pointer-events: none; }
+
+  /* --- Overview dashboard stat cards + charts */
+  .stat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 14px 16px;
+  }
+  .stat-card .label { font-size: 12px; color: #838a94; margin-bottom: 6px; }
+  .stat-card .value { font-size: 22px; font-weight: 700; }
+  .stat-card.highlight .value { color: #1c5ec2; }
+  .stat-card.money .value { color: #1a7f37; }
+  .chart-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+  .chart-card h2 { font-size: 15px; margin: 0 0 12px; }
+  .section-title { font-size: 15px; font-weight: 600; margin: 24px 0 10px; }
+  @media (max-width: 900px) {
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>

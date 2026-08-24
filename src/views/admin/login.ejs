@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Family Rhythm Admin — Sign in</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f6f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    form {
+      background: #fff;
+      padding: 32px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      width: 320px;
+    }
+    h1 { font-size: 18px; margin: 0 0 20px; }
+    label { display: block; font-size: 13px; color: #55606e; margin-bottom: 4px; }
+    input {
+      width: 100%;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+      border: 1px solid #d7dbe0;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #1a1d23;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .error { color: #b3261e; font-size: 13px; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <form method="post" action="/admin/login">
+    <h1>Family Rhythm Admin</h1>
+    <% if (error) { %><div class="error"><%= error %></div><% } %>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="username" required autofocus />
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="new-password" required />
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>
