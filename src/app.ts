@@ -16,6 +16,14 @@ import { adminApiRouter, adminPagesRouter } from './modules/admin/admin.routes';
 
 export const app = express();
 
+// Deployed behind a reverse proxy (it sets `X-Forwarded-For`) — without
+// this, express-rate-limit refuses to key off the client IP at all
+// (`ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`) since an untrusted proxy setting
+// could let a client spoof its own rate-limit identity via that header.
+// `1` trusts exactly the first hop (the proxy in front of this app), not
+// an arbitrary chain.
+app.set('trust proxy', 1);
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
