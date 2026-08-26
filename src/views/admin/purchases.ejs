@@ -56,12 +56,12 @@
       <table>
         <thead>
           <tr>
-            <th>User</th>
-            <th>Plan</th>
-            <th>Platform</th>
-            <th>Purchase date</th>
-            <th>Result</th>
-            <th>Amount</th>
+            <th><%- include('partials/sortHeader', { field: 'email', label: 'User', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'plan', label: 'Plan', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'platform', label: 'Platform', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'verifiedAt', label: 'Purchase date', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'verificationResult', label: 'Result', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'amount', label: 'Amount', query: query, qs: qs }) %></th>
           </tr>
         </thead>
         <tbody>

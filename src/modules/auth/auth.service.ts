@@ -91,12 +91,29 @@ export async function getMe(userId: string) {
   return { id: user.id, email: user.email, displayName: user.displayName, emailVerified: user.emailVerified };
 }
 
+// Admin "login count" is distinct calendar days, not raw login count — so
+// only the first login of the day actually inserts a row; subsequent
+// same-day logins are a no-op.
+async function recordLoginEvent(userId: string): Promise<void> {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const existingToday = await prisma.loginEvent.findFirst({
+    where: { userId, createdAt: { gte: startOfToday } },
+  });
+  if (existingToday) return;
+
+  await prisma.loginEvent.create({ data: { userId } });
+}
+
 export async function login(input: LoginInput) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user) throw unauthorized('auth.invalidCredentials');
 
   const valid = await verifyPassword(input.password, user.passwordHash);
   if (!valid) throw unauthorized('auth.invalidCredentials');
+
+  await recordLoginEvent(user.id);
 
   return { userId: user.id, token: signUserToken(user.id) };
 }

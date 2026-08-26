@@ -14,7 +14,12 @@ const envSchema = z.object({
 
   JWT_ADMIN_SECRET: z.string().min(16, 'JWT_ADMIN_SECRET must be set to a long random value'),
   JWT_ADMIN_EXPIRES_IN: z.string().default('10m'),
-  ADMIN_COOKIE_NAME: z.string().default('family_rhythm_admin'),
+  // `.min(1)` matters here, not just `.default(...)` — that only fills in
+  // when the var is entirely unset, so an env var present but blank (as
+  // happened on Railway) would otherwise sail through as `""`, which the
+  // `cookie` package rejects as an invalid name only once a request
+  // actually tries to set it, not at boot.
+  ADMIN_COOKIE_NAME: z.string().min(1).default('family_rhythm_admin'),
 
   GOOGLE_SERVICE_ACCOUNT_KEY_FILE: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().optional(),

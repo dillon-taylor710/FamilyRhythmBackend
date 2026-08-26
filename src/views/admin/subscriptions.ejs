@@ -66,12 +66,12 @@
       <table>
         <thead>
           <tr>
-            <th>User</th>
-            <th>Status</th>
-            <th>Plan</th>
-            <th>Platform</th>
-            <th>Auto-renew</th>
-            <th>Current period ends</th>
+            <th><%- include('partials/sortHeader', { field: 'email', label: 'User', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'status', label: 'Status', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'plan', label: 'Plan', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'platform', label: 'Platform', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'autoRenewing', label: 'Auto-renew', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'currentPeriodEnd', label: 'Current period ends', query: query, qs: qs }) %></th>
             <th>Transactions</th>
           </tr>
         </thead>

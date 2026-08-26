@@ -65,8 +65,25 @@ model User {
   transactions  PurchaseTransaction[]
   resetTokens   PasswordResetToken[]
   verificationCodes EmailVerificationCode[]
+  loginEvents   LoginEvent[]
 
   @@map("users")
+}
+
+// One row per successful `POST /auth/login` — append-only, so the admin
+// "login count" (distinct calendar days, not raw row count — logging in
+// five times in one day still counts as one) and per-user login history
+// page can both be derived from this without needing a separate
+// `lastLoginAt` counter that could drift.
+model LoginEvent {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("login_events")
 }
 
 model EmailVerificationCode {

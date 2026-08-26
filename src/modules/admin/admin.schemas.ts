@@ -34,7 +34,16 @@ export const dateRangeQuerySchema = z.object({
   to: z.string().trim().optional(),
 });
 
-export const usersQuerySchema = paginationQuerySchema.merge(dateRangeQuerySchema).extend({
+// --- Sortable-column support — every admin list page (Users/Subscriptions/
+// Purchases) accepts `sort`/`dir` query params. `sort` is validated per-page
+// against an allow-list of actual column keys in `admin.service.ts` (never
+// used to build a raw identifier directly), `dir` is just asc/desc.
+export const sortQuerySchema = z.object({
+  sort: z.string().trim().optional(),
+  dir: z.enum(['asc', 'desc']).optional(),
+});
+
+export const usersQuerySchema = paginationQuerySchema.merge(dateRangeQuerySchema).merge(sortQuerySchema).extend({
   email: z.string().trim().optional(),
   name: z.string().trim().optional(),
   // Which date field the range/preset above filters on — signup date or
@@ -44,7 +53,7 @@ export const usersQuerySchema = paginationQuerySchema.merge(dateRangeQuerySchema
 });
 export type UsersQuery = z.infer<typeof usersQuerySchema>;
 
-export const subscriptionsQuerySchema = paginationQuerySchema.merge(dateRangeQuerySchema).extend({
+export const subscriptionsQuerySchema = paginationQuerySchema.merge(dateRangeQuerySchema).merge(sortQuerySchema).extend({
   email: z.string().trim().optional(),
   status: z.string().trim().optional(),
   plan: z.string().trim().optional(),
@@ -52,12 +61,15 @@ export const subscriptionsQuerySchema = paginationQuerySchema.merge(dateRangeQue
 });
 export type SubscriptionsQuery = z.infer<typeof subscriptionsQuerySchema>;
 
-export const purchasesQuerySchema = paginationQuerySchema.merge(dateRangeQuerySchema).extend({
+export const purchasesQuerySchema = paginationQuerySchema.merge(dateRangeQuerySchema).merge(sortQuerySchema).extend({
   email: z.string().trim().optional(),
   plan: z.string().trim().optional(),
   platform: z.string().trim().optional(),
 });
 export type PurchasesQuery = z.infer<typeof purchasesQuerySchema>;
+
+export const userLoginHistoryQuerySchema = paginationQuerySchema;
+export type UserLoginHistoryQuery = z.infer<typeof userLoginHistoryQuerySchema>;
 
 export const overviewQuerySchema = dateRangeQuerySchema.extend({
   granularity: z.enum(['day', 'week', 'month']).default('day'),

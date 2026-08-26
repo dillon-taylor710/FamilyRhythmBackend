@@ -1,0 +1,8 @@
+<%
+  // Locals: field (sort key), label, query (current parsed query, has
+  // .sort/.dir), qs (query-string builder closure from the route).
+  var active = query.sort === field;
+  var nextDir = active && query.dir !== 'desc' ? 'desc' : 'asc';
+  var arrow = active ? (query.dir === 'desc' ? ' ▼' : ' ▲') : '';
+%>
+<a class="sort-header" href="<%= qs({ sort: field, dir: nextDir, page: 1 }) %>"><%= label %><%= arrow %></a>

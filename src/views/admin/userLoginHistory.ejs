@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Login history — Family Rhythm Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <%- include('partials/styles') %>
+</head>
+<body>
+  <%- include('partials/nav', { active: 'users' }) %>
+  <main>
+    <p><a href="/admin/users">&laquo; Back to Users</a></p>
+    <h1><%= user.displayName %> <span style="color:#838a94">(<%= user.email %>)</span></h1>
+
+    <div class="totals-strip">
+      <div><strong><%= loginDays %></strong><span>Login days (distinct days logged in)</span></div>
+      <div><strong><%= result.total %></strong><span>Total login events</span></div>
+    </div>
+
+    <% if (result.items.length === 0) { %>
+      <div class="empty">No login history for this user.</div>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <th>Logged in at</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% result.items.forEach(function(e) { %>
+            <tr>
+              <td><%= new Date(e.createdAt).toLocaleString() %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+      <%- include('partials/pagination') %>
+    <% } %>
+  </main>
+</body>
+</html>

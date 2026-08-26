@@ -54,17 +54,18 @@
       <table>
         <thead>
           <tr>
-            <th>Email</th>
-            <th>Name</th>
-            <th>Signed up</th>
-            <th>Subscription</th>
-            <th>Plan</th>
-            <th>Expires</th>
+            <th><%- include('partials/sortHeader', { field: 'email', label: 'Email', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'name', label: 'Name', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'createdAt', label: 'Signed up', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'status', label: 'Subscription', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'plan', label: 'Plan', query: query, qs: qs }) %></th>
+            <th><%- include('partials/sortHeader', { field: 'expiresAt', label: 'Expires', query: query, qs: qs }) %></th>
+            <th>Login count</th>
           </tr>
         </thead>
         <tbody>
           <% result.items.forEach(function(u) { %>
-            <tr>
+            <tr class="clickable-row" onclick="window.location='/admin/users/<%= u.id %>'">
               <td><%= u.email %></td>
               <td><%= u.displayName %></td>
               <td><%= new Date(u.createdAt).toLocaleDateString() %></td>
@@ -77,6 +78,7 @@
               </td>
               <td><%= u.planId || '—' %></td>
               <td><%= u.expiresAt ? new Date(u.expiresAt).toLocaleDateString() : '—' %></td>
+              <td><%= u.loginCount %></td>
             </tr>
           <% }); %>
         </tbody>

@@ -10,6 +10,7 @@ import {
   purchasesQuerySchema,
   subscriptionsQuerySchema,
   sumupUpdateSchema,
+  userLoginHistoryQuerySchema,
   usersQuerySchema,
 } from './admin.schemas';
 import * as adminService from './admin.service';
@@ -154,6 +155,23 @@ adminPagesRouter.get(
       result,
       query,
       range: resolveDateRangeForInputs(query),
+      isSuperAdmin: req.isSuperAdmin ?? false,
+      qs: (overrides: Record<string, unknown>) => buildQueryString(query, overrides),
+    });
+  }),
+);
+
+adminPagesRouter.get(
+  '/users/:id',
+  adminGuard,
+  asyncHandler(async (req, res) => {
+    const query = userLoginHistoryQuerySchema.parse(req.query);
+    const { user, loginDays, history } = await adminService.getUserLoginHistory(req.params.id!, query);
+    if (!user) return res.status(404).render('admin/notFound', { isSuperAdmin: req.isSuperAdmin ?? false });
+    res.render('admin/userLoginHistory', {
+      user,
+      loginDays,
+      result: history,
       isSuperAdmin: req.isSuperAdmin ?? false,
       qs: (overrides: Record<string, unknown>) => buildQueryString(query, overrides),
     });

@@ -12,7 +12,52 @@ import {
   startOfWeek,
   startOfYear,
 } from './adminDateRange';
-import type { AdminLoginInput, OverviewQuery, PurchasesQuery, SubscriptionsQuery, UsersQuery } from './admin.schemas';
+import type {
+  AdminLoginInput,
+  OverviewQuery,
+  PurchasesQuery,
+  SubscriptionsQuery,
+  UserLoginHistoryQuery,
+  UsersQuery,
+} from './admin.schemas';
+
+/**
+ * Resolves a validated `sort`/`dir` pair into a Prisma `orderBy` object.
+ * `columns` is an allow-list mapping the public sort key (used in the URL
+ * and matched against the `<th>` in the view) to the actual Prisma orderBy
+ * path — `sort` is never used to build a raw column/identifier itself, so
+ * an unrecognized value just falls back to `fallback` instead of erroring.
+ */
+function resolveOrderBy<T extends Record<string, unknown>>(
+  sort: string | undefined,
+  dir: 'asc' | 'desc' | undefined,
+  columns: Record<string, T>,
+  fallback: T,
+): T {
+  if (sort && sort in columns) {
+    const direction = dir ?? 'asc';
+    return applyDir(columns[sort]!, direction);
+  }
+  return fallback;
+}
+
+// Swaps in the requested direction wherever the allow-listed orderBy shape
+// has an 'asc'/'desc' leaf (works for both a flat `{ field: dir }` and a
+// nested one-to-one-relation `{ subscription: { field: dir } }`).
+function applyDir<T>(shape: T, dir: 'asc' | 'desc'): T {
+  if (shape && typeof shape === 'object') {
+    const entries = Object.entries(shape as Record<string, unknown>).map(([k, v]) => [
+      k,
+      v === 'asc' || v === 'desc' ? dir : applyDirUnknown(v, dir),
+    ]);
+    return Object.fromEntries(entries) as T;
+  }
+  return shape;
+}
+
+function applyDirUnknown(shape: unknown, dir: 'asc' | 'desc'): unknown {
+  return applyDir(shape, dir);
+}
 
 export async function adminLogin(input: AdminLoginInput) {
   const admin = await prisma.adminUser.findUnique({ where: { email: input.email } });
@@ -36,6 +81,19 @@ function paginate<T>(items: T[], total: number, page: number, pageSize: number):
   return { items, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
+// Allow-list of public sort keys -> Prisma orderBy shape for the Users
+// table — `subscription` fields use nested orderBy (supported for a
+// one-to-one relation), matching how `subscription.status`/etc. are already
+// read via `include` above.
+const USERS_SORT_COLUMNS: Record<string, Prisma.UserOrderByWithRelationInput> = {
+  email: { email: 'asc' },
+  name: { displayName: 'asc' },
+  createdAt: { createdAt: 'asc' },
+  status: { subscription: { status: 'asc' } },
+  plan: { subscription: { planId: 'asc' } },
+  expiresAt: { subscription: { currentPeriodEnd: 'asc' } },
+};
+
 export async function listUsers(query: UsersQuery): Promise<Page<{
   id: string;
   email: string;
@@ -44,8 +102,9 @@ export async function listUsers(query: UsersQuery): Promise<Page<{
   subscriptionStatus: string | null;
   planId: string | null;
   expiresAt: Date | null;
+  loginCount: number;
 }>> {
-  const { page, pageSize, email, name, dateField, ...rangeInput } = query;
+  const { page, pageSize, email, name, dateField, sort, dir, ...rangeInput } = query;
   const range = resolveDateRange(rangeInput);
 
   const where: Prisma.UserWhereInput = {};
@@ -60,16 +119,34 @@ export async function listUsers(query: UsersQuery): Promise<Page<{
     }
   }
 
+  const orderBy = resolveOrderBy(sort, dir, USERS_SORT_COLUMNS, { createdAt: 'desc' });
+
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
     prisma.user.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       include: { subscription: true },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
   ]);
+
+  // "Login count" is distinct calendar days with at least one login, not
+  // raw row count (logging in five times in one day still counts as one) —
+  // computed here for just this page's users, the same "aggregate only
+  // what's on the page" pattern `listSubscriptions` already uses below for
+  // `transactionCount`.
+  const userIds = users.map((u) => u.id);
+  const loginDayCounts = userIds.length
+    ? await prisma.$queryRaw<{ user_id: string; days: bigint }[]>`
+        SELECT user_id, COUNT(DISTINCT date_trunc('day', created_at)) AS days
+        FROM login_events
+        WHERE user_id IN (${Prisma.join(userIds)})
+        GROUP BY user_id
+      `
+    : [];
+  const loginCountByUser = new Map(loginDayCounts.map((r) => [r.user_id, Number(r.days)]));
 
   return paginate(
     users.map((u) => ({
@@ -80,12 +157,67 @@ export async function listUsers(query: UsersQuery): Promise<Page<{
       subscriptionStatus: u.subscription?.status ?? null,
       planId: u.subscription?.planId ?? null,
       expiresAt: u.subscription?.currentPeriodEnd ?? null,
+      loginCount: loginCountByUser.get(u.id) ?? 0,
     })),
     total,
     page,
     pageSize,
   );
 }
+
+export interface UserLoginHistoryEntry {
+  id: string;
+  createdAt: Date;
+}
+
+/** Admin per-user drill-down (click a Users row) — raw login events, most
+ * recent first. `loginDays` is the same distinct-day count shown in the
+ * Users table, recomputed here from the full (unpaginated) event list. */
+export async function getUserLoginHistory(
+  userId: string,
+  query: UserLoginHistoryQuery,
+): Promise<{
+  user: { id: string; email: string; displayName: string } | null;
+  loginDays: number;
+  history: Page<UserLoginHistoryEntry>;
+}> {
+  const { page, pageSize } = query;
+
+  const [user, total, events, allEvents] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, displayName: true } }),
+    prisma.loginEvent.count({ where: { userId } }),
+    prisma.loginEvent.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.loginEvent.findMany({ where: { userId }, select: { createdAt: true } }),
+  ]);
+
+  const loginDays = new Set(allEvents.map((e) => e.createdAt.toDateString())).size;
+
+  return {
+    user,
+    loginDays,
+    history: paginate(
+      events.map((e) => ({ id: e.id, createdAt: e.createdAt })),
+      total,
+      page,
+      pageSize,
+    ),
+  };
+}
+
+const SUBSCRIPTIONS_SORT_COLUMNS: Record<string, Prisma.SubscriptionOrderByWithRelationInput> = {
+  email: { user: { email: 'asc' } },
+  name: { user: { displayName: 'asc' } },
+  status: { status: 'asc' },
+  plan: { planId: 'asc' },
+  platform: { platform: 'asc' },
+  autoRenewing: { autoRenewing: 'asc' },
+  currentPeriodEnd: { currentPeriodEnd: 'asc' },
+};
 
 export async function listSubscriptions(query: SubscriptionsQuery): Promise<Page<{
   userId: string;
@@ -98,7 +230,7 @@ export async function listSubscriptions(query: SubscriptionsQuery): Promise<Page
   autoRenewing: boolean;
   transactionCount: number;
 }>> {
-  const { page, pageSize, email, status, plan, platform, ...rangeInput } = query;
+  const { page, pageSize, email, status, plan, platform, sort, dir, ...rangeInput } = query;
   const range = resolveDateRange(rangeInput);
 
   const where: Prisma.SubscriptionWhereInput = {};
@@ -108,11 +240,13 @@ export async function listSubscriptions(query: SubscriptionsQuery): Promise<Page
   if (platform && platform in Platform) where.platform = platform as Platform;
   if (range.from || range.to) where.updatedAt = { gte: range.from, lte: range.to };
 
+  const orderBy = resolveOrderBy(sort, dir, SUBSCRIPTIONS_SORT_COLUMNS, { updatedAt: 'desc' });
+
   const [total, subscriptions] = await Promise.all([
     prisma.subscription.count({ where }),
     prisma.subscription.findMany({
       where,
-      orderBy: { updatedAt: 'desc' },
+      orderBy,
       include: { user: { select: { email: true, displayName: true } } },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -143,6 +277,16 @@ export async function listSubscriptions(query: SubscriptionsQuery): Promise<Page
   );
 }
 
+const PURCHASES_SORT_COLUMNS: Record<string, Prisma.PurchaseTransactionOrderByWithRelationInput> = {
+  email: { user: { email: 'asc' } },
+  name: { user: { displayName: 'asc' } },
+  plan: { productId: 'asc' },
+  platform: { platform: 'asc' },
+  verifiedAt: { verifiedAt: 'asc' },
+  verificationResult: { verificationResult: 'asc' },
+  amount: { amountUsd: 'asc' },
+};
+
 export async function listPurchases(query: PurchasesQuery): Promise<
   Page<{
     id: string;
@@ -156,7 +300,7 @@ export async function listPurchases(query: PurchasesQuery): Promise<
     amount: number;
   }> & { totalAmount: number }
 > {
-  const { page, pageSize, email, plan, platform, ...rangeInput } = query;
+  const { page, pageSize, email, plan, platform, sort, dir, ...rangeInput } = query;
   const range = resolveDateRange(rangeInput);
 
   const where: Prisma.PurchaseTransactionWhereInput = {};
@@ -165,11 +309,13 @@ export async function listPurchases(query: PurchasesQuery): Promise<
   if (platform && platform in Platform) where.platform = platform as Platform;
   if (range.from || range.to) where.verifiedAt = { gte: range.from, lte: range.to };
 
+  const orderBy = resolveOrderBy(sort, dir, PURCHASES_SORT_COLUMNS, { verifiedAt: 'desc' });
+
   const [total, transactions, amountAgg] = await Promise.all([
     prisma.purchaseTransaction.count({ where }),
     prisma.purchaseTransaction.findMany({
       where,
-      orderBy: { verifiedAt: 'desc' },
+      orderBy,
       include: { user: { select: { email: true, displayName: true } } },
       skip: (page - 1) * pageSize,
       take: pageSize,
